@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Online Exam Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #4361ee; --primary-dark: #3a0ca3; --success: #2a9d8f;
+      --danger: #e63946; --warning: #fca311; --dark: #1a1a2e;
+      --gray: #8d99ae; --bg: #f0f2f5; --sidebar-w: 250px; --header-h: 60px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+    body { background: var(--bg); color: var(--dark); overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+    button { cursor: pointer; border: none; border-radius: 8px; padding: 10px 15px; font-weight: 500; transition: 0.3s; }
+    .btn-primary { background: linear-gradient(135deg, #4361ee, #3a0ca3); color: #fff; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-warning { background: var(--warning); color: #fff; }
+    input, select, textarea { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 5px; font-family: inherit; }
+    .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .grid { display: grid; gap: 20px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+    .flex { display: flex; align-items: center; justify-content: space-between; }
+    .center { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    
+    .auth-box { background: #fff; padding: 40px; border-radius: 12px; width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+    .auth-box h2 { text-align: center; margin-bottom: 20px; color: var(--primary); }
+    .toggle-auth { text-align: center; margin-top: 15px; color: var(--gray); cursor: pointer; }
+    
+    .header { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: fixed; top: 0; left: 0; right: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 100; }
+    .sidebar { width: var(--sidebar-w); background: #fff; position: fixed; top: var(--header-h); bottom: 0; left: 0; padding: 20px 0; box-shadow: 2px 0 10px rgba(0,0,0,0.05); overflow-y: auto; }
+    .sidebar ul { list-style: none; }
+    .sidebar li { padding: 15px 20px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+    .sidebar li:hover, .sidebar li.active { background: var(--bg); border-left: 4px solid var(--primary); color: var(--primary); font-weight: 600; }
+    .main-content { margin-left: var(--sidebar-w); margin-top: var(--header-h); padding: 20px; min-height: calc(100vh - var(--header-h)); }
+    .sub-header { margin-bottom: 20px; font-size: 1.5rem; font-weight: 600; color: var(--dark); }
+    
+    .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+    .badge.pass { background: #d4edda; color: #155724; }
+    .badge.fail { background: #f8d7da; color: #721c24; }
+    .badge.pending { background: #fff3cd; color: #856404; }
+    
+    .exam-map { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+    .q-box { height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 5px; background: var(--bg); border: 1px solid #ccc; cursor: pointer; font-weight: 600; }
+    .q-box.answered { background: var(--success); color: #fff; border-color: var(--success); }
+    .q-box.current { border: 2px solid var(--primary); transform: scale(1.1); }
+    
+    .timer { font-size: 1.5rem; font-weight: 700; color: var(--danger); text-align: right; margin-bottom: 20px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--gray); }
+    .profile-avatar { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin: 0 auto 15px; display: block; border: 3px solid var(--primary); }
+    
+    .video-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; background: #000; border-radius: 10px; }
+    .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: var(--bg); color: var(--dark); font-weight: 600; }
+    tr:hover { background: rgba(0,0,0,0.02); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    const currentUser = <%- JSON.stringify(user || null) %>;
+    
+    const state = {
+      user: currentUser,
+      view: currentUser ? (currentUser.role === 'admin' ? 'adminDashboard' : 'studentDashboard') : 'auth',
+      authMode: 'login',
+      data: { departments: [], exams: [], submissions: [], videos: [], messages: [], students: [] },
+      currentExam: null, currentSubmission: null, answers: [], timerInterval: null
+    };
+
+    async function api(url, method = 'GET', body = null) {
+      try {
+        const res = await fetch('/api' + url, {
+          method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : null
+        });
+        if (res.status === 401) { alert('Session expired.'); window.location.reload(); return; }
+        return await res.json();
+      } catch (err) { console.error(err); }
+    }
+
+    function logout() { api('/auth/logout', 'POST').then(() => window.location.reload()); }
+
+    function render() {
+      const app = document.getElementById('app');
+      if (!state.user) {
+        app.innerHTML = renderAuth();
+        bindAuth();
+      } else {
+        app.innerHTML = `
+          <div class="header">
+            <div style="font-weight:700;color:var(--primary);font-size:1.2rem;"><i class="fas fa-graduation-cap"></i> ExamPortal</div>
+            <div class="flex" style="gap:20px;">
+              ${state.user.role === 'student' ? `<span class="badge" style="background:var(--bg);">ID: ${state.user.studentId || 'N/A'}</span>` : ''}
+              <span>Welcome, ${state.user.name}</span>
+              ${state.user.profilePhoto ? `<img src="${state.user.profilePhoto}" class="avatar">` : `<i class="fas fa-user-circle fa-2x"></i>`}
+              <button class="btn-danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+          </div>
+          <div class="sidebar">
+            <ul>
+              ${state.user.role === 'admin' ? `
+                <li class="${state.view==='adminDashboard'?'active':''}" onclick="navigate('adminDashboard')"><i class="fas fa-home"></i> Dashboard</li>
+                <li class="${state.view==='adminDepartments'?'active':''}" onclick="navigate('adminDepartments')"><i class="fas fa-building"></i> Departments</li>
+                <li class="${state.view==='adminExams'?'active':''}" onclick="navigate('adminExams')"><i class="fas fa-file-alt"></i> Exams</li>
+                <li class="${state.view==='adminSubmissions'?'active':''}" onclick="navigate('adminSubmissions')"><i class="fas fa-check-circle"></i> Grading</li>
+                <li class="${state.view==='adminVideos'?'active':''}" onclick="navigate('adminVideos')"><i class="fas fa-video"></i> Videos</li>
+                <li class="${state.view==='adminMessages'?'active':''}" onclick="navigate('adminMessages')"><i class="fas fa-envelope"></i> Messages</li>
+              ` : `
+                <li class="${state.view==='studentDashboard'?'active':''}" onclick="navigate('studentDashboard')"><i class="fas fa-home"></i> Dashboard</li>
+                <li class="${state.view==='studentExams'?'active':''}" onclick="navigate('studentExams')"><i class="fas fa-pen"></i> Take Exam</li>
+                <li class="${state.view==='studentResults'?'active':''}" onclick="navigate('studentResults')"><i class="fas fa-chart-line"></i> Results</li>
+                <li class="${state.view==='studentInbox'?'active':''}" onclick="navigate('studentInbox')"><i class="fas fa-inbox"></i> Inbox</li>
+                <li class="${state.view==='studentVideos'?'active':''}" onclick="navigate('studentVideos')"><i class="fas fa-play-circle"></i> Videos</li>
+              `}
+            </ul>
+          </div>
+          <div class="main-content">
+            <div class="sub-header">${getTitle()}</div>
+            <div id="view-container"></div>
+          </div>
+        `;
+        renderView();
+      }
+    }
+
+    function navigate(view) {
+      state.view = view;
+      if (view === 'adminDashboard' && state.data.submissions.length === 0) loadAdminData();
+      if (view === 'adminExams' && state.data.departments.length === 0) loadAdminData();
+      if (view === 'studentDashboard') loadStudentData();
+      if (view === 'studentExams') loadStudentExams();
+      if (view === 'studentResults') loadStudentResults();
+      if (view === 'studentInbox') loadStudentInbox();
+      if (view === 'studentVideos' || view === 'adminVideos') loadVideos();
+      if (view === 'adminMessages') loadStudents();
+      render();
+    }
+
+    async function loadAdminData() {
+      state.data.departments = await api('/departments');
+      state.data.exams = await api('/exams');
+      state.data.submissions = await api('/submissions');
+    }
+
+    function renderView() {
+      const container = document.getElementById('view-container');
+      if (!container) return;
+      if (state.user.role === 'admin') {
+        if (state.view === 'adminDashboard') container.innerHTML = renderAdminDashboard();
+        if (state.view === 'adminDepartments') container.innerHTML = renderAdminDepartments();
+        if (state.view === 'adminExams') container.innerHTML = renderAdminExams();
+        if (state.view === 'adminSubmissions') container.innerHTML = renderAdminSubmissions();
+        if (state.view === 'adminVideos') container.innerHTML = renderAdminVideos();
+        if (state.view === 'adminMessages') container.innerHTML = renderAdminMessages();
+      } else {
+        if (state.view === 'studentDashboard') container.innerHTML = renderStudentDashboard();
+        if (state.view === 'studentExams') container.innerHTML = renderStudentExams();
+        if (state.view === 'studentResults') container.innerHTML = renderStudentResults();
+        if (state.view === 'studentInbox') container.innerHTML = renderStudentInbox();
+        if (state.view === 'studentVideos') container.innerHTML = renderStudentVideos();
+      }
+      if (state.view === 'adminDashboard') initAdminCharts();
+      if (state.view === 'studentDashboard') initStudentCharts();
+      if (state.view === 'studentExams' && state.currentExam) initTakeExam();
+    }
+
+    // ----------------- Auth -----------------
+    function renderAuth() {
+      return `
+        <div class="center">
+          <div class="auth-box">
+            <h2><i class="fas fa-graduation-cap"></i> ExamPortal</h2>
+            ${state.authMode === 'login' ? `
+              <form id="loginForm">
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit" class="btn-primary" style="width:100%;margin-top:10px;">Login</button>
+              </form>
+              <div class="toggle-auth" onclick="state.authMode='register'; render();">Need an account? <span style="color:var(--primary);font-weight:600;">Register</span></div>
+            ` : `
+              <form id="registerForm">
+                <input type="text" id="name" placeholder="Full Name" required>
+                <input type="email" id="email" placeholder="Email" required>
+                <select id="department"><option value="">Select Department</option></select>
+                <select id="role"><option value="student">Student</option><option value="admin">Admin</option></select>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit" class="btn-primary" style="width:100%;margin-top:10px;">Register</button>
+              </form>
+              <div class="toggle-auth" onclick="state.authMode='login'; render();">Have an account? <span style="color:var(--primary);font-weight:600;">Login</span></div>
+            `}
+          </div>
+        </div>`;
+    }
+    async function bindAuth() {
+      if (state.authMode === 'register') {
+        const deps = await api('/departments');
+        const select = document.getElementById('department');
+        deps.forEach(d => { const opt = document.createElement('option'); opt.value = d._id; opt.textContent = d.name; select.appendChild(opt); });
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const res = await api('/auth/register', 'POST', {
+            name: document.getElementById('name').value, email: document.getElementById('email').value,
+            department: document.getElementById('department').value, role: document.getElementById('role').value,
+            password: document.getElementById('password').value
+          });
+          if (res && res.msg) { alert(res.msg); window.location.reload(); }
+        });
+      } else {
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const res = await api('/auth/login', 'POST', {
+            email: document.getElementById('email').value, password: document.getElementById('password').value
+          });
+          if (res && res.msg === 'Logged in successfully') window.location.reload();
+          else if (res && res.msg) alert(res.msg);
+        });
+      }
+    }
+
+    // ----------------- Admin Views -----------------
+    function getTitle() {
+      const t = { adminDashboard: 'Admin Dashboard', adminDepartments: 'Manage Departments', adminExams: 'Manage Exams', adminSubmissions: 'Grading & Submissions', adminVideos: 'Manage Videos', adminMessages: 'Send Messages', studentDashboard: 'My Dashboard', studentExams: 'Available Exams', studentResults: 'My Results', studentInbox: 'My Inbox', studentVideos: 'Tutorial Videos' };
+      return t[state.view] || '';
+    }
+    function renderAdminDashboard() {
+      return `<div class="grid grid-2"><div class="card"><h3>Pass/Fail Ratio</h3><canvas id="passFailChart"></canvas></div><div class="card"><h3>Avg Scores per Exam</h3><canvas id="avgScoreChart"></canvas></div></div>`;
+    }
+    function initAdminCharts() {
+      const subs = state.data.submissions.filter(s => s.isSubmitted);
+      const passed = subs.filter(s => s.passed).length;
+      new Chart(document.getElementById('passFailChart'), { type: 'pie', data: { labels: ['Passed', 'Failed'], datasets: [{ data: [passed, subs.length - passed], backgroundColor: ['#2a9d8f', '#e63946'] }] } });
+      const examScores = {};
+      subs.forEach(s => {
+        if (!examScores[s.exam._id]) examScores[s.exam._id] = { sum: 0, count: 0, title: s.exam.title };
+        examScores[s.exam._id].sum += s.percentage; examScores[s.exam._id].count++;
+      });
+      new Chart(document.getElementById('avgScoreChart'), { type: 'bar', data: { labels: Object.values(examScores).map(e => e.title), datasets: [{ label: 'Avg %', data: Object.values(examScores).map(e => e.sum / e.count), backgroundColor: '#4361ee' }] } });
+    }
+    function renderAdminDepartments() {
+      return `
+        <div class="card"><h3>Add Department</h3><div class="flex"><input type="text" id="depName" placeholder="Department Name" style="margin:0;"><button class="btn-primary" onclick="addDepartment()" style="margin-left:10px;">Add</button></div></div>
+        <div class="card"><h3>Departments List</h3><table><tr><th>Name</th><th>Action</th></tr>${state.data.departments.map(d => `<tr><td>${d.name}</td><td><button class="btn-danger" onclick="deleteDepartment('${d._id}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</table></div>`;
+    }
+    async function addDepartment() {
+      const name = document.getElementById('depName').value; if(!name) return;
+      await api('/departments', 'POST', { name }); loadAdminData(); render();
+    }
+    async function deleteDepartment(id) { await api('/departments/' + id, 'DELETE'); loadAdminData(); render(); }
+    
+    function renderAdminExams() {
+      return `
+        <div class="grid grid-2">
+          <div class="card"><h3>Create Exam</h3>
+            <select id="examDep"><option value="">Select Dept</option>${state.data.departments.map(d=>`<option value="${d._id}">${d.name}</option>`).join('')}</select>
+            <input type="text" id="examTitle" placeholder="Title"><textarea id="examDesc" placeholder="Description"></textarea>
+            <input type="number" id="examDuration" placeholder="Duration (mins)"><input type="number" id="examPass" placeholder="Passing %">
+            <button class="btn-primary" style="width:100%" onclick="createExam()">Create Exam</button>
+          </div>
+          <div class="card"><h3>Exams</h3>${state.data.exams.map(e => `<div class="flex" style="padding:10px;border-bottom:1px solid #eee;"><div><strong>${e.title}</strong><br><small>${e.department ? e.department.name : ''}</small></div><button class="btn-warning" onclick="manageExam('${e._id}')">Manage</button></div>`).join('')}</div>
+        </div><div id="exam-manage-container"></div>`;
+    }
+    async function createExam() {
+      await api('/exams', 'POST', { title: document.getElementById('examTitle').value, description: document.getElementById('examDesc').value, department: document.getElementById('examDep').value, duration: document.getElementById('examDuration').value, passingPercentage: document.getElementById('examPass').value });
+      loadAdminData(); render();
+    }
+    async function manageExam(id) {
+      state.currentExam = await api('/exams/' + id);
+      document.getElementById('exam-manage-container').innerHTML = `
+        <div class="card" style="margin-top:20px;"><h3>Manage Questions</h3>
+          <select id="qType" onchange="toggleQType()"><option value="mcq">MCQ</option><option value="file">File Upload</option></select>
+          <div id="mcq-fields"><textarea id="qText" placeholder="Question Text"></textarea><input type="text" id="opt1" placeholder="Option 1"><input type="text" id="opt2" placeholder="Option 2"><input type="text" id="opt3" placeholder="Option 3"><input type="text" id="opt4" placeholder="Option 4"><input type="text" id="qCorrect" placeholder="Correct Answer"><input type="number" id="qMarks" placeholder="Marks"></div>
+          <div id="file-fields" style="display:none;"><textarea id="qFileText" placeholder="Question Text"></textarea><input type="file" id="qFile" accept="image/*,application/pdf" onchange="uploadQFile(event)"><input type="number" id="qFileMarks" placeholder="Marks"></div>
+          <button class="btn-primary" style="margin-top:10px;" onclick="addQuestion()">Add Question</button><hr style="margin:20px 0;"><h4>Questions List</h4>
+          ${state.currentExam.questions.map((q, i) => `<div class="flex" style="padding:10px;background:var(--bg);border-radius:5px;margin-top:10px;"><div><strong>Q${i+1}:</strong> ${q.questionText || 'File'} (${q.marks} m)</div><button class="btn-danger" onclick="deleteQuestion('${state.currentExam._id}', ${i})"><i class="fas fa-trash"></i></button></div>`).join('')}
+        </div>`;
+    }
+    function toggleQType() {
+      const t = document.getElementById('qType').value;
+      document.getElementById('mcq-fields').style.display = t === 'mcq' ? 'block' : 'none';
+      document.getElementById('file-fields').style.display = t === 'file' ? 'block' : 'none';
+    }
+    let tempQFile = null;
+    function uploadQFile(e) { const r = new FileReader(); r.onload = () => tempQFile = r.result; r.readAsDataURL(e.target.files[0]); }
+    async function addQuestion() {
+      const t = document.getElementById('qType').value; let body;
+      if (t === 'mcq') body = { type: t, questionText: document.getElementById('qText').value, options: [document.getElementById('opt1').value, document.getElementById('opt2').value, document.getElementById('opt3').value, document.getElementById('opt4').value], correctAnswer: document.getElementById('qCorrect').value, marks: document.getElementById('qMarks').value };
+      else body = { type: t, questionText: document.getElementById('qFileText').value, questionFile: tempQFile, marks: document.getElementById('qFileMarks').value };
+      await api('/exams/' + state.currentExam._id + '/questions', 'POST', body);
+      manageExam(state.currentExam._id);
+    }
+    async function deleteQuestion(examId, index) { await api('/exams/' + examId + '/questions/' + index, 'DELETE'); manageExam(examId); }
+
+    function renderAdminSubmissions() {
+      return `<div class="card"><h3>Select Exam</h3><select onchange="viewSubmissions(this.value)" id="subExamSelect"><option value="">Select Exam</option>${state.data.exams.map(e => `<option value="${e._id}">${e.title}</option>`).join('')}</select><div id="subs-container" style="margin-top:20px;"></div></div>`;
+    }
+    async function viewSubmissions(examId) {
+      if(!examId) { document.getElementById('subs-container').innerHTML=''; return; }
+      const subs = await api('/submissions?examId=' + examId);
+      document.getElementById('subs-container').innerHTML = `<table><tr><th>Student</th><th>Score</th><th>%</th><th>Status</th><th>Action</th></tr>${subs.map(s => `<tr><td>${s.user.name} (${s.user.studentId})</td><td>${s.score} / ${s.totalMarks}</td><td>${s.percentage.toFixed(1)}%</td><td>${s.needsManualGrading ? `<span class="badge pending">Pending</span>` : (s.passed ? `<span class="badge pass">Pass</span>` : `<span class="badge fail">Fail</span>`)}</td><td>${s.needsManualGrading ? `<div class="flex"><input type="number" id="grade_${s._id}" placeholder="Score" style="width:80px;margin:0;"><button class="btn-success" onclick="gradeSub('${s._id}')">Save</button></div>` : 'Done'}</td></tr>`).join('')}</table>`;
+    }
+    async function gradeSub(id) {
+      await api('/submissions/' + id + '/grade', 'PUT', { score: document.getElementById('grade_' + id).value });
+      alert('Graded!'); viewSubmissions(document.getElementById('subExamSelect').value);
+    }
+
+    function renderAdminVideos() {
+      return `<div class="grid grid-2"><div class="card"><h3>Add Video</h3><input type="text" id="vidTitle" placeholder="Title"><input type="text" id="vidUrl" placeholder="YouTube URL"><button class="btn-primary" style="width:100%;" onclick="addVideo()">Add</button></div><div class="card"><h3>Videos</h3><div id="vid-list"></div></div></div>`;
+    }
+    function parseYouTube(url) { let id = ''; if (url.includes('watch?v=')) id = url.split('watch?v=')[1].split('&')[0]; else if (url.includes('youtu.be/')) id = url.split('youtu.be/')[1]; return `https://www.youtube.com/embed/${id}`; }
+    async function addVideo() { await api('/videos', 'POST', { title: document.getElementById('vidTitle').value, youtubeUrl: document.getElementById('vidUrl').value }); loadVideos(); }
+    async function loadVideos() {
+      state.data.videos = await api('/videos');
+      if (state.view === 'adminVideos') document.getElementById('vid-list').innerHTML = state.data.videos.map(v => `<div class="flex" style="padding:10px;border-bottom:1px solid #eee;"><span>${v.title}</span><button class="btn-danger" onclick="deleteVideo('${v._id}')"><i class="fas fa-trash"></i></button></div>`).join('');
+      else if (state.view === 'studentVideos' || state.view === 'adminVideos') document.getElementById('view-container').innerHTML = `<div class="grid grid-2">${state.data.videos.map(v => `<div class="card"><h4>${v.title}</h4><div class="video-container"><iframe src="${parseYouTube(v.youtubeUrl)}" frameborder="0" allowfullscreen></iframe></div></div>`).join('')}</div>`;
+    }
+    async function deleteVideo(id) { await api('/videos/' + id, 'DELETE'); loadVideos(); }
+
+    function renderAdminMessages() {
+      return `<div class="card"><h3>Send Message</h3><select id="msg-student-select"><option value="">Loading...</option></select><input type="text" id="msg-subject" placeholder="Subject"><textarea id="msg-body" placeholder="Body"></textarea><button class="btn-primary" style="width:100%;" onclick="sendMessage()">Send</button></div>`;
+    }
+    async function loadStudents() {
+      if (state.data.students.length === 0) state.data.students = await api('/users');
+      if (state.view === 'adminMessages') document.getElementById('msg-student-select').innerHTML = state.data.students.map(s => `<option value="${s._id}">${s.name} (${s.studentId})</option>`).join('');
+    }
+    async function sendMessage() {
+      await api('/messages', 'POST', { toStudent: document.getElementById('msg-student-select').value, subject: document.getElementById('msg-subject').value, body: document.getElementById('msg-body').value });
+      alert('Sent!'); document.getElementById('msg-subject').value=''; document.getElementById('msg-body').value='';
+    }
+
+    // ----------------- Student Views -----------------
+    async function loadStudentData() { state.data.submissions = await api('/submissions'); state.data.messages = await api('/messages'); }
+    function renderStudentDashboard() {
+      return `<div class="grid grid-3">
+        <div class="card" style="text-align:center;">${state.user.profilePhoto ? `<img src="${state.user.profilePhoto}" class="profile-avatar">` : `<i class="fas fa-user-circle fa-5x" style="color:var(--gray);margin-bottom:15px;"></i>`}<h3>${state.user.name}</h3><p>ID: ${state.user.studentId}</p><input type="file" accept="image/*" style="margin-top:15px;" onchange="uploadProfilePic(event)"></div>
+        <div class="card"><h3>Stats</h3><p><i class="fas fa-wallet"></i> Wallet: $${state.user.wallet || 0}</p><p><i class="fas fa-inbox"></i> Inbox: ${state.data.messages.length}</p><p><i class="fas fa-pen"></i> Exams Taken: ${state.data.submissions.length}</p></div>
+        <div class="card"><h3>Performance</h3><canvas id="perfChart"></canvas></div>
+      </div>`;
+    }
+    function initStudentCharts() {
+      const ctx = document.getElementById('perfChart'); if(!ctx) return;
+      new Chart(ctx, { type: 'line', data: { labels: state.data.submissions.map(s => s.exam.title), datasets: [{ label: 'Percentage', data: state.data.submissions.map(s => s.percentage), borderColor: '#4361ee', fill: false }] } });
+    }
+    async function uploadProfilePic(e) {
+      const f = e.target.files[0]; if (f.size > 2 * 1024 * 1024) { alert('Max 2MB'); return; }
+      const r = new FileReader(); r.onload = async () => { await api('/users/profile', 'PUT', { profilePhoto: r.result, name: state.user.name }); alert('Updated!'); window.location.reload(); }; r.readAsDataURL(f);
+    }
+    async function loadStudentExams() { if (state.data.exams.length === 0) state.data.exams = await api('/exams'); render(); }
+    function renderStudentExams() {
+      if (state.currentExam) return '';
+      return `<div class="grid grid-3">${state.data.exams.map(e => `<div class="card"><h3>${e.title}</h3><p>${e.description}</p><p><i class="fas fa-clock"></i> ${e.duration} mins</p><button class="btn-primary" onclick="startExam('${e._id}')">Start</button></div>`).join('')}</div>`;
+    }
+    async function startExam(id) {
+      state.currentSubmission = await api('/submissions/start', 'POST', { examId: id });
+      state.currentExam = await api('/exams/' + id);
+      state.answers = state.currentExam.questions.map((q, i) => ({ questionIndex: i, selectedAnswer: null, answerFile: null }));
+      render();
+    }
+    let currentQIndex = 0;
+    function initTakeExam() {
+      const container = document.getElementById('view-container');
+      const exam = state.currentExam, sub = state.currentSubmission;
+      const endTime = new Date(sub.startedAt).getTime() + exam.duration * 60000;
+      container.innerHTML = `<div class="flex"><h3>${exam.title}</h3><div class="timer" id="timer"></div></div><div class="card"><h4>Map</h4><div class="exam-map" id="exam-map">${exam.questions.map((q, i) => `<div class="q-box" id="qbox_${i}" onclick="goToQuestion(${i})">${i+1}</div>`).join('')}</div></div><div class="card" id="question-container"></div><button class="btn-success" onclick="submitExam()">Submit Exam</button>`;
+      state.timerInterval = setInterval(() => {
+        const dist = endTime - new Date().getTime();
+        if (dist < 0) { clearInterval(state.timerInterval); submitExam(); return; }
+        const m = Math.floor((dist % 3600000) / 60000), s = Math.floor((dist % 60000) / 1000);
+        document.getElementById('timer').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+      }, 1000);
+      currentQIndex = 0; renderQuestion();
+    }
+    function renderQuestion() {
+      const q = state.currentExam.questions[currentQIndex], container = document.getElementById('question-container');
+      container.innerHTML = `<h3>Q ${currentQIndex + 1}</h3>${q.questionText ? `<p>${q.questionText}</p>` : ''}${q.questionFile ? `<img src="${q.questionFile}" style="max-width:200px;margin-bottom:10px;">` : ''}${q.type === 'mcq' ? `${q.options.map(opt => `<div style="margin:10px 0;"><label><input type="radio" name="q_${currentQIndex}" value="${opt}" onchange="saveAnswer('${opt}')" ${state.answers[currentQIndex].selectedAnswer === opt ? 'checked' : ''}> ${opt}</label></div>`).join('')}` : `<input type="file" id="ans_file" onchange="saveFileAnswer(event)">${state.answers[currentQIndex].answerFile ? '<p style="color:var(--success);"><i class="fas fa-check"></i> Uploaded</p>' : ''}`}<div class="flex" style="margin-top:20px;"><button class="btn-primary" onclick="prevQ()" ${currentQIndex===0?'disabled':''}>Prev</button><button class="btn-primary" onclick="nextQ()" ${currentQIndex===state.currentExam.questions.length-1?'disabled':''}>Next</button></div>`;
+      document.querySelectorAll('.q-box').forEach((el, i) => { el.className = 'q-box'; if (state.answers[i].selectedAnswer || state.answers[i].answerFile) el.classList.add('answered'); if (i === currentQIndex) el.classList.add('current'); });
+    }
+    function saveAnswer(v) { state.answers[currentQIndex].selectedAnswer = v; renderQuestion(); }
+    function saveFileAnswer(e) { const r = new FileReader(); r.onload = () => { state.answers[currentQIndex].answerFile = r.result; renderQuestion(); }; r.readAsDataURL(e.target.files[0]); }
+    function prevQ() { if(currentQIndex>0) { currentQIndex--; renderQuestion(); } }
+    function nextQ() { if(currentQIndex<state.currentExam.questions.length-1) { currentQIndex++; renderQuestion(); } }
+    function goToQuestion(i) { currentQIndex = i; renderQuestion(); }
+    async function submitExam() {
+      clearInterval(state.timerInterval);
+      await api('/submissions/submit', 'POST', { submissionId: state.currentSubmission._id, answers: state.answers });
+      alert('Submitted!'); state.currentExam = null; state.currentSubmission = null; navigate('studentResults');
+    }
+    async function loadStudentResults() { if (state.data.submissions.length === 0) state.data.submissions = await api('/submissions'); render(); }
+    function renderStudentResults() {
+      return `<div class="card"><table><tr><th>Exam</th><th>Score</th><th>%</th><th>Status</th></tr>${state.data.submissions.map(s => `<tr><td>${s.exam.title}</td><td>${s.score} / ${s.totalMarks}</td><td>${s.percentage.toFixed(1)}%</td><td>${s.needsManualGrading ? `<span class="badge pending">Pending</span>` : (s.passed ? `<span class="badge pass">Pass</span>` : `<span class="badge fail">Fail</span>`)}</td></tr>`).join('')}</table></div>`;
+    }
+    async function loadStudentInbox() { if (state.data.messages.length === 0) state.data.messages = await api('/messages'); render(); }
+    function renderStudentInbox() {
+      return `<div class="card">${state.data.messages.length === 0 ? '<p>Empty</p>' : state.data.messages.map(m => `<div style="padding:15px;border-bottom:1px solid #eee;"><h4>${m.subject}</h4><p>${m.body}</p><small style="color:var(--gray);">${new Date(m.createdAt).toLocaleString()}</small></div>`).join('')}</div>`;
+    }
+
+    render();
+  </script>
+</body>
+</html>
